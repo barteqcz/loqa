@@ -29,7 +29,7 @@
 
 ## Screenshot
 
-<img width="300" alt="Screenshot_20260527_105523_Hopp" src="https://github.com/user-attachments/assets/061c95a0-80e8-4d44-9ecf-eed3fb63cf44" />
+<img width="240" alt="Screenshot_2026-05-29-00-14-50-720_com barteqcz loqa" src="https://github.com/user-attachments/assets/841d675a-e03d-49fe-8a58-99af67055d72" />
 
 ## Getting Started with development
 
