@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.barteqcz.loqa.ui.theme.DarkBackground
 import com.barteqcz.loqa.ui.theme.TextGrey
+import com.barteqcz.loqa.R
 
 @Composable
 fun OnboardingScreen(

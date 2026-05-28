@@ -16,11 +16,11 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.barteqcz.hopp"
+    namespace = "com.barteqcz.loqa"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.barteqcz.hopp"
+        applicationId = "com.barteqcz.loqa"
         minSdk = 24
         targetSdk = 37
         versionCode = 1
