@@ -65,7 +65,7 @@ class RadioRepository(
     }
 
     companion object {
-        private const val MIN_REFRESH_DISTANCE_METERS = 100f
-        private const val MIN_REFRESH_TIME_MS = 60000L
+        private const val MIN_REFRESH_DISTANCE_METERS = 1000f
+        private const val MIN_REFRESH_TIME_MS = 30000L
     }
 }

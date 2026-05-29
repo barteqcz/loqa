@@ -476,9 +476,9 @@ class RadioViewModel @Inject constructor(
     }
 
     companion object {
-        private const val GEOCODING_DISTANCE_THRESHOLD_METERS = 500f
-        private const val STATION_REFRESH_DISTANCE_METERS = 100f
-        private const val LOCATION_UPDATE_INTERVAL_MS = 60000L
+        private const val GEOCODING_DISTANCE_THRESHOLD_METERS = 1000f
+        private const val STATION_REFRESH_DISTANCE_METERS = 1000f
+        private const val LOCATION_UPDATE_INTERVAL_MS = 30000L
         private const val FLOW_STOP_TIMEOUT_MS = 5000L
     }
 }
