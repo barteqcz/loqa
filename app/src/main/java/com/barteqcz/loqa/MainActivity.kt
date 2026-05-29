@@ -29,19 +29,17 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.barteqcz.loqa.ui.BackgroundLocationDisclosure
-import com.barteqcz.loqa.ui.MiniPlayer
-import com.barteqcz.loqa.ui.OnboardingScreen
-import com.barteqcz.loqa.ui.RadioScreen
-import com.barteqcz.loqa.ui.RadioUiState
-import com.barteqcz.loqa.ui.RadioViewModel
-import com.barteqcz.loqa.ui.SettingsScreen
+import com.barteqcz.loqa.ui.navigation.RadioRoute
+import com.barteqcz.loqa.ui.navigation.SettingsRoute
+import com.barteqcz.loqa.ui.components.MiniPlayer
+import com.barteqcz.loqa.ui.onboarding.BackgroundLocationDisclosure
+import com.barteqcz.loqa.ui.onboarding.OnboardingScreen
+import com.barteqcz.loqa.ui.main.RadioScreen
+import com.barteqcz.loqa.ui.main.RadioUiState
+import com.barteqcz.loqa.ui.main.RadioViewModel
+import com.barteqcz.loqa.ui.settings.SettingsScreen
 import com.barteqcz.loqa.ui.theme.LoqaTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.serialization.Serializable
-
-@Serializable object RadioRoute
-@Serializable object SettingsRoute
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {

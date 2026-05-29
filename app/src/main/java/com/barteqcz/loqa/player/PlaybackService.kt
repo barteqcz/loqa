@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.service
+package com.barteqcz.loqa.player
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -36,14 +36,10 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.barteqcz.loqa.MainActivity
 import com.barteqcz.loqa.R
-import com.barteqcz.loqa.data.PlaybackEvents
-import com.barteqcz.loqa.data.RadioRepository
-import com.barteqcz.loqa.data.SettingsRepository
+import com.barteqcz.loqa.data.repository.RadioRepository
+import com.barteqcz.loqa.data.repository.SettingsRepository
 import com.barteqcz.loqa.data.model.RadioStation
-import com.barteqcz.loqa.data.util.MediaMetadataMapper
 import com.barteqcz.loqa.data.util.NetworkResult
-import com.barteqcz.loqa.location.LocationClient
-import com.google.android.gms.location.Priority
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.SettableFuture
 import dagger.hilt.android.AndroidEntryPoint
@@ -69,9 +65,6 @@ class PlaybackService : MediaSessionService() {
     lateinit var playbackEvents: PlaybackEvents
 
     @Inject
-    lateinit var locationClient: LocationClient
-
-    @Inject
     lateinit var repository: RadioRepository
 
     @Inject
@@ -89,7 +82,6 @@ class PlaybackService : MediaSessionService() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var playbackJob: Job? = null
-    private var locationJob: Job? = null
 
     private val noisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -130,7 +122,7 @@ class PlaybackService : MediaSessionService() {
         observeStations()
         
         if (hasLocationPermission()) {
-            startBackgroundTracking()
+            repository.startLocationTracking()
         }
 
         val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
@@ -145,19 +137,6 @@ class PlaybackService : MediaSessionService() {
         return ContextCompat.checkSelfPermission(
             this, android.Manifest.permission.ACCESS_COARSE_LOCATION,
         ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun startBackgroundTracking() {
-        locationJob?.cancel()
-        locationJob = locationClient.getLocationUpdates(
-            interval = 60000L,
-            minDistance = 100f,
-            priority = Priority.PRIORITY_HIGH_ACCURACY,
-        )
-            .onEach { location ->
-                repository.updateNearbyStations(location)
-            }
-            .launchIn(serviceScope)
     }
 
     private fun observeStations() {
@@ -737,7 +716,6 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        locationJob?.cancel()
         serviceScope.cancel()
         try {
             unregisterReceiver(noisyReceiver)

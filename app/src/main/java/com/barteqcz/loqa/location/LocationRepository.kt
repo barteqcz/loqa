@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.data
+package com.barteqcz.loqa.location
 
 import android.content.Context
 import android.location.Address

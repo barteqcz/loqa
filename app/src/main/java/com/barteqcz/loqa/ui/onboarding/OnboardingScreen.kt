@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.ui
+package com.barteqcz.loqa.ui.onboarding
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,9 +16,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.barteqcz.loqa.R
 import com.barteqcz.loqa.ui.theme.DarkBackground
 import com.barteqcz.loqa.ui.theme.TextGrey
-import com.barteqcz.loqa.R
 
 @Composable
 fun OnboardingScreen(

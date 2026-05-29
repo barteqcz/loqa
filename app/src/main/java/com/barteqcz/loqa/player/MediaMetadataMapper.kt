@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.data.util
+package com.barteqcz.loqa.player
 
 import android.os.Bundle
 import androidx.core.net.toUri

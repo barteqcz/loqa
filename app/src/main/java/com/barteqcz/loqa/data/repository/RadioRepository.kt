@@ -1,54 +1,67 @@
-package com.barteqcz.loqa.data
+package com.barteqcz.loqa.data.repository
 
 import android.content.Context
 import android.location.Location
 import com.barteqcz.loqa.R
+import com.barteqcz.loqa.data.model.LocationInfo
 import com.barteqcz.loqa.data.model.RadioStation
 import com.barteqcz.loqa.data.remote.RadioApiService
 import com.barteqcz.loqa.data.util.NetworkResult
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.barteqcz.loqa.location.LocationManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import retrofit2.HttpException
 import java.io.IOException
 import java.net.UnknownHostException
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class RadioRepository(
+@Singleton
+class RadioRepository @Inject constructor(
     private val apiService: RadioApiService,
-    private val settingsRepository: SettingsRepository,
-    private val context: Context,
+    private val locationManager: LocationManager,
+    @param:ApplicationContext private val context: Context,
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    
     private val _stations = MutableStateFlow<NetworkResult<List<RadioStation>>>(NetworkResult.Loading)
     val stations: StateFlow<NetworkResult<List<RadioStation>>> = _stations.asStateFlow()
 
-    private var lastFetchedLocation: Location? = null
-    private var lastFetchTime: Long = 0
+    val currentLocation: StateFlow<Location?> = locationManager.currentLocation
+    val locationInfo: StateFlow<LocationInfo> = locationManager.locationInfo
+
     private var isFetching = false
+    private var observationJob: Job? = null
 
-    suspend fun updateNearbyStations(location: Location, force: Boolean = false) {
-        // Persist coordinates for app launch consistency
-        settingsRepository.updateLastLocation(null, null, location.latitude, location.longitude)
-
-        val currentTime = System.currentTimeMillis()
-        val timeDelta = currentTime - lastFetchTime
-        val distance = lastFetchedLocation?.distanceTo(location) ?: Float.MAX_VALUE
-
-        if (!force && _stations.value is NetworkResult.Success) {
-            val isTooClose = distance < MIN_REFRESH_DISTANCE_METERS
-            val isTooSoon = timeDelta < MIN_REFRESH_TIME_MS
-
-            if (isTooSoon || isTooClose) {
-                return
-            }
+    fun startLocationTracking() {
+        locationManager.startTracking()
+        
+        if (observationJob != null) return
+        observationJob = scope.launch {
+            locationManager.currentLocation
+                .filterNotNull()
+                .distinctUntilChanged { old, new ->
+                    old.latitude == new.latitude && old.longitude == new.longitude
+                }
+                .collect { location ->
+                    updateNearbyStations(location)
+                }
         }
+    }
 
+    fun stopLocationTracking() {
+        locationManager.stopTracking()
+        observationJob?.cancel()
+        observationJob = null
+    }
+
+    suspend fun updateNearbyStations(location: Location) {
         if (isFetching) return
         isFetching = true
 
         try {
             val result = apiService.getNearbyStations(location.latitude, location.longitude)
-            lastFetchedLocation = location
-            lastFetchTime = currentTime
             _stations.value = NetworkResult.Success(result)
         } catch (e: IOException) {
             val isServerError = e !is UnknownHostException
@@ -62,10 +75,5 @@ class RadioRepository(
         } finally {
             isFetching = false
         }
-    }
-
-    companion object {
-        private const val MIN_REFRESH_DISTANCE_METERS = 1000f
-        private const val MIN_REFRESH_TIME_MS = 30000L
     }
 }

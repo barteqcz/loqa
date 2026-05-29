@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.data
+package com.barteqcz.loqa.player
 
 import android.content.ComponentName
 import android.content.Context
@@ -10,8 +10,6 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import com.barteqcz.loqa.data.util.MediaMetadataMapper
-import com.barteqcz.loqa.service.PlaybackService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import timber.log.Timber

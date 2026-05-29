@@ -36,7 +36,7 @@
         </activity>
 
         <service
-            android:name="com.barteqcz.loqa.service.PlaybackService"
+            android:name="com.barteqcz.loqa.player.PlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback|location"
             android:label="@string/playback_service_label">

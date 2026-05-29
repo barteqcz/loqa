@@ -1,31 +1,23 @@
-package com.barteqcz.loqa.ui
+package com.barteqcz.loqa.ui.main
 
-import android.content.Context
-import android.location.Location
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.barteqcz.loqa.R
-import com.barteqcz.loqa.data.AppSettings
-import com.barteqcz.loqa.data.LocationRepository
-import com.barteqcz.loqa.data.RadioPlayer
-import com.barteqcz.loqa.data.RadioRepository
-import com.barteqcz.loqa.data.SettingsRepository
+import com.barteqcz.loqa.data.model.AppSettings
+import com.barteqcz.loqa.player.RadioPlayer
+import com.barteqcz.loqa.data.repository.RadioRepository
+import com.barteqcz.loqa.data.repository.SettingsRepository
+import com.barteqcz.loqa.data.model.LocationInfo
 import com.barteqcz.loqa.data.model.RadioStation
 import com.barteqcz.loqa.data.util.NetworkResult
 import com.barteqcz.loqa.data.util.StationProcessor
-import com.barteqcz.loqa.location.LocationClient
 import com.barteqcz.loqa.ui.theme.LoqaGreen
-import com.barteqcz.loqa.util.AddressRefiner
 import com.barteqcz.loqa.util.ConnectivityObserver
-import com.google.android.gms.location.Priority
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import kotlin.math.roundToInt
 
 data class RadioViewState(
     val uiState: RadioUiState = RadioUiState.Loading,
@@ -44,31 +36,18 @@ data class RadioViewState(
     val isNetworkAvailable: Boolean = true,
 )
 
-data class LocationInfo(
-    val city: String? = null,
-    val country: String? = null,
-    val countryCode: String? = null,
-    val distanceKm: Int? = null,
-)
-
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class RadioViewModel @Inject constructor(
-    private val locationClient: LocationClient,
     private val repository: RadioRepository,
     private val radioPlayer: RadioPlayer,
     private val settingsRepository: SettingsRepository,
-    private val locationRepository: LocationRepository,
     connectivityObserver: ConnectivityObserver,
-    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
 
-    private var lastGeocodedLocation: Location? = null
     private var lastNetworkId: String? = null
-    private val _currentLocation = MutableStateFlow<Location?>(null)
     private val _uiState = MutableStateFlow<RadioUiState>(RadioUiState.Loading)
     private val _selectedStationUrl = MutableStateFlow<String?>(null)
-    private val _locationInfo = MutableStateFlow(LocationInfo())
 
     private val connectivityStatus = connectivityObserver.observe()
         .stateIn(
@@ -118,7 +97,7 @@ class RadioViewModel @Inject constructor(
         radioPlayer.isBuffering,
         radioPlayer.playbackError,
         radioPlayer.metadata,
-        _locationInfo,
+        repository.locationInfo,
         settings,
         connectivityStatus,
     ) { args ->
@@ -147,7 +126,7 @@ class RadioViewModel @Inject constructor(
 
     private fun observeStations() {
         repository.stations
-            .combine(_currentLocation) { stations, location -> stations to location }
+            .combine(repository.currentLocation) { stations, location -> stations to location }
             .onEach { (result, location) ->
                 when (result) {
                     is NetworkResult.Loading -> {
@@ -185,13 +164,14 @@ class RadioViewModel @Inject constructor(
                                 currentLocation = location ?: currentState.currentLocation,
                             )
                         } else if (location != null) {
+                            val locInfo = repository.locationInfo.value
                             _uiState.value = RadioUiState.Success(
                                 stations = groupedStations,
                                 allStations = allStations,
                                 currentLocation = location,
-                                cityName = _locationInfo.value.city,
-                                countryName = _locationInfo.value.country,
-                                countryCode = _locationInfo.value.countryCode,
+                                cityName = locInfo.city,
+                                countryName = locInfo.country,
+                                countryCode = locInfo.countryCode,
                             )
                         }
                     }
@@ -219,16 +199,6 @@ class RadioViewModel @Inject constructor(
                     }
                 }
         }
-
-        viewModelScope.launch {
-            settings
-                .filter { it.lastCity != null }
-                .collect { s ->
-                    if (_locationInfo.value.city == null) {
-                        _locationInfo.value = LocationInfo(s.lastCity, null, s.lastCountryCode)
-                    }
-                }
-        }
     }
 
     private fun observeConnectivity() {
@@ -239,7 +209,7 @@ class RadioViewModel @Inject constructor(
                     lastNetworkId = status.networkId
 
                     if ((_uiState.value is RadioUiState.Error) || (_uiState.value is RadioUiState.Success)) {
-                        _currentLocation.value?.let { viewModelScope.launch { repository.updateNearbyStations(it) } }
+                        repository.currentLocation.value?.let { viewModelScope.launch { repository.updateNearbyStations(it) } }
                     }
 
                     val url = _selectedStationUrl.value
@@ -256,47 +226,26 @@ class RadioViewModel @Inject constructor(
     }
 
     private fun setupLocationTracking() {
-        var isFirstLocation = true
         settings
             .map { it.isOnboardingCompleted }
             .distinctUntilChanged()
-            .flatMapLatest { completed ->
+            .onEach { completed ->
                 if (completed) {
-                    flow {
-                        val savedLat = settings.value.lastLatitude
-                        val savedLon = settings.value.lastLongitude
-                        if (savedLat != null && savedLon != null) {
-                            emit(
-                                Location("saved").apply {
-                                    latitude = savedLat
-                                    longitude = savedLon
-                                }
-                            )
-                        }
-
-                        val lastLocation = locationClient.getLastLocation()
-                        if (lastLocation != null) {
-                            emit(lastLocation)
-                        }
-                        emitAll(
-                            locationClient.getLocationUpdates(
-                                interval = LOCATION_UPDATE_INTERVAL_MS,
-                                minDistance = STATION_REFRESH_DISTANCE_METERS,
-                                priority = Priority.PRIORITY_HIGH_ACCURACY,
-                            )
-                        )
-                    }
-                        .onEach { location ->
-                            _currentLocation.value = location
-                            repository.updateNearbyStations(location, force = isFirstLocation)
-                            isFirstLocation = false
-                            handleGeocoding(location)
-                        }
-                        .catch { e ->
-                            _uiState.value = RadioUiState.Error(e.message ?: context.getString(R.string.error_unknown), isServerError = false)
-                        }
+                    repository.startLocationTracking()
                 } else {
-                    emptyFlow()
+                    repository.stopLocationTracking()
+                }
+            }
+            .launchIn(viewModelScope)
+
+        repository.locationInfo
+            .onEach { info ->
+                (_uiState.value as? RadioUiState.Success)?.let { currentState ->
+                    _uiState.value = currentState.copy(
+                        cityName = info.city,
+                        countryName = info.country,
+                        countryCode = info.countryCode,
+                    )
                 }
             }
             .launchIn(viewModelScope)
@@ -336,70 +285,6 @@ class RadioViewModel @Inject constructor(
         }.launchIn(viewModelScope)
     }
 
-    private fun handleGeocoding(location: Location) {
-        val distance = calculateDistance(lastGeocodedLocation, location)
-        if (_locationInfo.value.city != null && distance <= GEOCODING_DISTANCE_THRESHOLD_METERS) return
-
-        lastGeocodedLocation = location
-        viewModelScope.launch {
-            val result = locationRepository.getAddressesFromLocation(location)
-            val addresses = (result as? NetworkResult.Success)?.data ?: return@launch
-            val firstAddress = addresses.firstOrNull() ?: return@launch
-
-            val bestCandidate = AddressRefiner.findBestCityCandidate(addresses)
-            
-            fun isValid(name: String?): Boolean = name != null && name.length > 2 && !name.all { it.isDigit() }
-
-            val rawCity = bestCandidate 
-                ?: firstAddress.locality?.takeIf { isValid(it) }
-                ?: firstAddress.subAdminArea?.takeIf { isValid(it) }
-                ?: firstAddress.adminArea?.takeIf { isValid(it) }
-                ?: firstAddress.featureName?.takeIf { isValid(it) }
-            
-            val newCity = AddressRefiner.cleanCityName(rawCity)
-            val searchTerms = listOfNotNull(newCity, firstAddress.subAdminArea, firstAddress.adminArea, firstAddress.countryName)
-                .distinct()
-            val citySearchQuery = if (searchTerms.isNotEmpty()) searchTerms.joinToString(", ") else null
-            
-            val isSpecificCity = bestCandidate != null || firstAddress.locality?.let { isValid(it) } == true
-            val distKm = if (isSpecificCity && citySearchQuery != null) {
-                calculateCityDistance(location, citySearchQuery)
-            } else {
-                null
-            }
-
-            if (newCity != _locationInfo.value.city || distKm != _locationInfo.value.distanceKm) {
-                updateLocationInfo(
-                    city = newCity ?: _locationInfo.value.city,
-                    country = firstAddress.countryName ?: _locationInfo.value.country,
-                    code = firstAddress.countryCode ?: _locationInfo.value.countryCode,
-                    distance = distKm,
-                    latitude = location.latitude,
-                    longitude = location.longitude
-                )
-            }
-        }
-    }
-
-    private fun calculateDistance(from: Location?, to: Location): Float {
-        if (from == null) return Float.MAX_VALUE
-        val results = FloatArray(1)
-        Location.distanceBetween(from.latitude, from.longitude, to.latitude, to.longitude, results)
-        return results[0]
-    }
-
-    private suspend fun calculateCityDistance(currentLocation: Location, cityName: String): Int? {
-        val result = locationRepository.getCityLocation(cityName, proximity = currentLocation)
-        val cityLoc = (result as? NetworkResult.Success)?.data ?: return _locationInfo.value.distanceKm
-        val results = FloatArray(1)
-        Location.distanceBetween(
-            currentLocation.latitude, currentLocation.longitude,
-            cityLoc.latitude, cityLoc.longitude,
-            results,
-        )
-        return (results[0] / 1000).roundToInt()
-    }
-
     fun updateMaterialYou(enabled: Boolean) = viewModelScope.launch { settingsRepository.updateMaterialYou(enabled) }
     fun updateUseHqStream(useHq: Boolean) = viewModelScope.launch { settingsRepository.updateUseHqStream(useHq) }
     fun updateAccentColor(color: Color) = viewModelScope.launch { settingsRepository.updateAccentColor(color) }
@@ -407,19 +292,11 @@ class RadioViewModel @Inject constructor(
     fun resetOnboarding() = viewModelScope.launch { settingsRepository.updateOnboardingCompleted(completed = false) }
 
     fun refresh() {
-        _currentLocation.value?.let { viewModelScope.launch { repository.updateNearbyStations(it, force = true) } }
+        repository.currentLocation.value?.let { viewModelScope.launch { repository.updateNearbyStations(it) } }
     }
 
     fun toggleFavorite(station: RadioStation) {
         viewModelScope.launch { settingsRepository.toggleFavorite(station.name) }
-    }
-
-    private fun updateLocationInfo(city: String?, country: String?, code: String?, distance: Int? = null, latitude: Double? = null, longitude: Double? = null) {
-        _locationInfo.value = LocationInfo(city, country, code, distance)
-        viewModelScope.launch { settingsRepository.updateLastLocation(city, code, latitude, longitude) }
-        (_uiState.value as? RadioUiState.Success)?.let { currentState ->
-            _uiState.value = currentState.copy(cityName = city, countryName = country, countryCode = code)
-        }
     }
 
     fun toggleStation(url: String) {
@@ -476,22 +353,6 @@ class RadioViewModel @Inject constructor(
     }
 
     companion object {
-        private const val GEOCODING_DISTANCE_THRESHOLD_METERS = 1000f
-        private const val STATION_REFRESH_DISTANCE_METERS = 1000f
-        private const val LOCATION_UPDATE_INTERVAL_MS = 30000L
         private const val FLOW_STOP_TIMEOUT_MS = 5000L
     }
-}
-
-sealed interface RadioUiState {
-    data object Loading : RadioUiState
-    data class Success(
-        val stations: List<RadioStation>,
-        val allStations: List<RadioStation> = emptyList(),
-        val currentLocation: Location,
-        val cityName: String? = null,
-        val countryName: String? = null,
-        val countryCode: String? = null,
-    ) : RadioUiState
-    data class Error(val message: String, val isServerError: Boolean = false) : RadioUiState
 }

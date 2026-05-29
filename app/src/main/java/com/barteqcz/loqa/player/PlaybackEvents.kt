@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.data
+package com.barteqcz.loqa.player
 
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow

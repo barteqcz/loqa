@@ -1,11 +1,11 @@
-package com.barteqcz.loqa.data
+package com.barteqcz.loqa.data.repository
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.barteqcz.loqa.data.model.AppSettings
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -67,7 +67,7 @@ class SettingsRepository @Inject constructor(
 
     suspend fun updateAccentColor(color: Color) {
         context.dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ACCENT_COLOR] = color.toArgb()
+            preferences[PreferencesKeys.ACCENT_COLOR] = color.value.toInt()
         }
     }
 
@@ -83,25 +83,13 @@ class SettingsRepository @Inject constructor(
     suspend fun toggleFavorite(stationId: String) {
         context.dataStore.edit { preferences ->
             val currentFavorites = preferences[PreferencesKeys.FAVORITE_STATIONS] ?: emptySet()
-            val newFavorites = if (currentFavorites.contains(stationId)) {
-                currentFavorites - stationId
+            val newFavorites = currentFavorites.toMutableSet()
+            if (stationId in currentFavorites) {
+                newFavorites.remove(stationId)
             } else {
-                currentFavorites + stationId
+                newFavorites.add(stationId)
             }
             preferences[PreferencesKeys.FAVORITE_STATIONS] = newFavorites
         }
     }
 }
-
-data class AppSettings(
-    val isMaterialYouEnabled: Boolean,
-    val accentColor: Color,
-    val lastCity: String? = null,
-    val lastCountryCode: String? = null,
-    val isOnboardingCompleted: Boolean = false,
-    val favoriteStations: Set<String> = emptySet(),
-    val useHqStream: Boolean = false,
-    val lastLatitude: Double? = null,
-    val lastLongitude: Double? = null,
-    val isInitialValue: Boolean = true,
-)

@@ -1,4 +1,4 @@
-package com.barteqcz.loqa.ui
+package com.barteqcz.loqa.ui.onboarding
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.LocationOn
